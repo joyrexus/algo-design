@@ -1,49 +1,96 @@
-import random
+class Matcher:
 
-# the men and their list of ordered spousal preferences
-M = dict((m, prefs.split(', ')) for [m, prefs] in (line.rstrip().split(': ')
-                                for line in open('men.txt')))
+    def __init__(self, men, women, forbidden):
+        '''
+        Constructs a Matcher instance.
 
-# the women and their list of ordered spousal preferences
-W = dict((m, prefs.split(', ')) for [m, prefs] in (line.rstrip().split(': ')
-                                for line in open('women.txt')))
+        Takes a dict of men's spousal preferences, `men`,
+        a dict of women's spousal preferences, `women`,
+        and a dict specifying which marriages are forbidden
+        for each man:
 
-# for each man construct a random list of forbidden wives
-forbidden = {}      # { 'dan': ['gay', 'eve', 'abi'], 'hal': ['eve'] }
-for m, prefs in M.items():
-    randrange = range(random.randint(0, len(prefs) - 1))
-    forbidden[m] = [random.choice(prefs) for i in randrange]
+        >>> forbidden = { 'dan': ['ann', 'eve', ... ] }
 
-# test whether w prefers m over h
-def prefers(w, m, h):
-    return W[w].index(m) < W[w].index(h)
+        '''
+        self.M = men
+        self.W = women
+        self.forbidden = forbidden
+        self.wives = {}
+        self.pairs = []
 
-# return the woman favored by m after w
-def after(m, w):
-    prefs = M[m]                    # m's ordered list of preferences
-    i = prefs.index(w) + 1          # index of woman following w in list of prefs
-    if i >= len(prefs):
-        return ''                   # no more women left!
-    w = prefs[i]                    # woman following w in list of prefs
-    if w in forbidden.get(m, []):   # get next woman if (m, w) is forbidden
-        return after(m, w)
-    return w
+    def __call__(self):
+        return self.match()
 
-# try to match all men with their next preferred spouse
-def match(men, next={}, wives={}):
-    if not len(men): return wives
-    m, men = men[0], men[1:]
-    w = next[m]                     # next woman for m to propose to
-    if not w:                       # continue if no woman to propose to
-        return match(men, next, wives)
-    next[m] = after(m, w)           # woman after w in m's list of prefs
-    if w in wives:
-        h = wives[w]                # current husband
-        if prefers(w, m, h):
-            men.append(h)           # husband becomes available again
-            wives[w] = m            # w becomes wife of m
+    def prefers(self, w, m, h):
+        '''
+        Test whether w prefers m over h.
+        
+        '''
+        return self.W[w].index(m) < self.W[w].index(h)
+
+    def after(self, m, w):
+        '''
+        Return the woman favored by m after w.
+        
+        '''
+        prefs = self.M[m]               # m's ordered list of preferences
+        i = prefs.index(w) + 1          # woman following w in list of prefs
+        if i >= len(prefs):
+            return ''                   # no more women left!
+        w = prefs[i]                    # woman following w in list of prefs
+        if w in self.forbidden.get(m, []):      # if (m, w) is forbidden
+            return self.after(m, w)             # try next w 
+        return w
+
+    def match(self, men=None, next=None, wives=None):
+        '''
+        Try to match all men with their next preferred spouse.
+        
+        '''
+        if men is None: 
+            men = self.M.keys()         # get the complete list of men
+        if next is None: 
+            # if not defined, map each man to their first preference
+            next = dict((m, rank[0]) for m, rank in self.M.items()) 
+        if wives is None: 
+            wives = {}                  # mapping from women to current spouse
+        if not len(men): 
+            self.pairs = [(h, w) for w, h in wives.items()]
+            self.wives = wives
+            return wives
+        m, men = men[0], men[1:]
+        w = next[m]                     # next woman for m to propose to
+        if not w:                       # continue if no woman to propose to
+            return self.match(men, next, wives)
+        next[m] = self.after(m, w)      # woman after w in m's list of prefs
+        if w in wives:
+            h = wives[w]                # current husband
+            if self.prefers(w, m, h):
+                men.append(h)           # husband becomes available again
+                wives[w] = m            # w becomes wife of m
+            else:
+                men.append(m)           # m remains unmarried
         else:
-            men.append(m)           # m remains unmarried
-    else:
-        wives[w] = m                # w becomes wife of m
-    return match(men, next, wives)
+            wives[w] = m                # w becomes wife of m
+        return self.match(men, next, wives)
+
+    def is_stable(self, wives=None, verbose=False):
+        if wives is None:
+            wives = self.wives
+        for w, m in wives.items():
+            i = self.M[m].index(w)
+            preferred = self.M[m][:i]
+            for p in preferred:
+                if p in self.forbidden.get(m, []):  # no need to worry about
+                    continue                        # forbidden marriages@
+                if not p in wives:
+                    continue
+                h = wives[p]
+                if self.W[p].index(m) < self.W[p].index(h):  
+                    msg = "{}'s marriage to {} is unstable: " + \
+                          "{} prefers {} over {} and {} prefers " + \
+                          "{} over her current husband {}"
+                    if verbose:
+                        print msg.format(m, w, m, p, w, p, m, h) 
+                    return False
+        return True

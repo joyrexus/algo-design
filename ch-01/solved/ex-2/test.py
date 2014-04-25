@@ -1,37 +1,31 @@
-from match import match, forbidden, M, W
+import random
+from match import Matcher
 
-# check if a mapping of wives to husbands is stable
-def is_stable(wives, verbose=False):
-    for w, m in wives.items():
-        i = M[m].index(w)
-        preferred = M[m][:i]
-        for p in preferred:
-            if p in forbidden.get(m, []):   # no need to worry about 
-                continue                    #    forbidden marriages!
-            h = wives[p]
-            if W[p].index(m) < W[p].index(h):  
-                msg = "{}'s marriage to {} is unstable: " + \
-                      "{} prefers {} over {} and {} prefers " + \
-                      "{} over her current husband {}"
-                if verbose:
-                    print msg.format(m, w, m, p, w, p, m, h) 
-                return False
-    return True
 
-# a mapping from men to their top preferences
-top = dict((m, rank[0]) for m, rank in M.items()) 
+# the men and their list of ordered spousal preferences
+M = dict((m, prefs.split(', ')) for [m, prefs] in (line.rstrip().split(': ')
+                                for line in open('men.txt')))
+
+# the women and their list of ordered spousal preferences
+W = dict((m, prefs.split(', ')) for [m, prefs] in (line.rstrip().split(': ')
+                                for line in open('women.txt')))
+
+# for each man construct a random list of forbidden wives
+forbidden = {}      # { 'dan': ['gay', 'eve', 'abi'], 'hal': ['eve'] }
+for m, prefs in M.items():
+    n = random.randint(0, len(prefs) - 1)
+    forbidden[m] = random.sample(prefs, n)  # random sample of n wives
+
+match = Matcher(M, W, forbidden)
 
 # match men and women; returns a mapping of wives to husbands
-wives = match(M.keys(), top)
+wives = match()
 
-assert is_stable(wives)             # should be a stable matching
+assert match.is_stable(wives)           # should be a stable matching
 
 # swap the husbands of two wives, which should make the matching unstable
-wives['fay'], wives['gay'] = wives['gay'], wives['fay']
+a, b = random.sample(wives.keys(), 2)
+wives[b], wives[a] = wives[a], wives[b]
 
-assert is_stable(wives) is False    # should not be a stable matching
+match.is_stable(wives, verbose=True)
 
-# with the perturbed matching we find that gav's marriage to fay is unstable: 
-#
-#   * gav prefers gay over fay 
-#   * gay prefers gav over her current husband dan
