@@ -1,0 +1,9 @@
+PDF
+*pdf
+*.swp
+*.zip
+*.swp
+*.xls
+*.xlsx
+*.py[cod]
+.DS_Store
