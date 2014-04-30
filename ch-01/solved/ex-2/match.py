@@ -1,3 +1,6 @@
+from collections import defaultdict
+
+
 class Matcher:
 
     def __init__(self, men, women, forbidden):
@@ -18,6 +21,19 @@ class Matcher:
         self.wives = {}
         self.pairs = []
 
+        # we index spousal preferences at initialization 
+        # to avoid expensive lookups when matching
+        self.mrank = defaultdict(dict)  # `mrank[m][w]` is m's ranking of w
+        self.wrank = defaultdict(dict)  # `wrank[w][m]` is w's ranking of m
+
+        for m, prefs in men.items():
+            for i, w in enumerate(prefs):
+                self.mrank[m][w] = i
+
+        for w, prefs in women.items():
+            for i, m in enumerate(prefs):
+                self.wrank[w][m] = i
+
     def __call__(self):
         return self.match()
 
@@ -26,7 +42,14 @@ class Matcher:
         Test whether w prefers m over h.
         
         '''
-        return self.W[w].index(m) < self.W[w].index(h)
+        return self.wrank[w][m] < self.wrank[w][h]
+
+    def is_forbidden(self, m, w):
+        '''
+        Test whether (m, w) is a forbidden pairing.
+
+        '''
+        return w in self.forbidden.get(m, [])
 
     def after(self, m, w):
         '''
@@ -34,12 +57,12 @@ class Matcher:
         
         '''
         prefs = self.M[m]               # m's ordered list of preferences
-        i = prefs.index(w) + 1          # woman following w in list of prefs
+        i = self.mrank[m][w] + 1        # index of woman following w in list of prefs
         if i >= len(prefs):
             return ''                   # no more women left!
         w = prefs[i]                    # woman following w in list of prefs
-        if w in self.forbidden.get(m, []):      # if (m, w) is forbidden
-            return self.after(m, w)             # try next w 
+        if self.is_forbidden(m, w):     # if (m, w) is forbidden
+            return self.after(m, w)     # try next w 
         return w
 
     def match(self, men=None, next=None, wives=None):

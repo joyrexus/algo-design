@@ -1,3 +1,6 @@
+from collections import defaultdict
+
+
 class Matcher:
 
     def __init__(self, men, women):
@@ -13,21 +16,36 @@ class Matcher:
         self.wives = {}
         self.pairs = []
 
+        # we index spousal preferences at initialization 
+        # to avoid expensive lookups when matching
+        self.mrank = defaultdict(dict)  # `mrank[m][w]` is m's ranking of w
+        self.wrank = defaultdict(dict)  # `wrank[w][m]` is w's ranking of m
+
+        for m, prefs in men.items():
+            for i, w in enumerate(prefs):
+                self.mrank[m][w] = i
+
+        for w, prefs in women.items():
+            for i, m in enumerate(prefs):
+                self.wrank[w][m] = i
+
     def __call__(self):
         return self.match()
 
     def prefers(self, w, m, h):
-        'Test whether w prefers m over h.'
-        return self.W[w].index(m) < self.W[w].index(h)
+        '''Test whether w prefers m over h.'''
+        return self.wrank[w][m] < self.wrank[w][h]
 
     def after(self, m, w):
-        'Return the woman favored by m after w.'
-        prefs = self.M[m]           # m's ordered list of preferences
-        i = prefs.index(w) + 1      # woman following w in list of prefs
-        return prefs[i]
+        '''Return the woman favored by m after w.'''
+        i = self.mrank[m][w] + 1    # index of woman following w in list of prefs
+        return self.M[m][i]
 
     def match(self, men=None, next=None, wives=None):
-        'Try to match all men with their next preferred spouse.'
+        '''
+        Try to match all men with their next preferred spouse.
+        
+        '''
         if men is None: 
             men = self.M.keys()         # get the complete list of men
         if next is None: 
@@ -63,8 +81,8 @@ class Matcher:
                 h = wives[p]
                 if self.W[p].index(m) < self.W[p].index(h):  
                     msg = "{}'s marriage to {} is unstable: " + \
-                        "{} prefers {} over {} and {} prefers " + \
-                        "{} over her current husband {}"
+                          "{} prefers {} over {} and {} prefers " + \
+                          "{} over her current husband {}"
                     if verbose:
                         print msg.format(m, w, m, p, w, p, m, h) 
                     return False
